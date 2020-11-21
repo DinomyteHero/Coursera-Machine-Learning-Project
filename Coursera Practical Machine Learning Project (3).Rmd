@@ -1,0 +1,103 @@
+---
+title: "Coursera Machine Learning Project"
+author: "Louis"
+date: "11/15/2020"
+output:
+  html_document:
+    df_print: paged
+---
+---
+title: "Coursera Machine Learning Project"
+author: "Louis"
+date: "11/15/2020"
+output: pdf_document
+---
+# I loaded the necessary libraries to do the machine learning.
+```{r}
+library(caret)
+library(dplyr)
+library(ggplot2)
+library(rpart.plot)
+library(corrplot)
+library(randomForest)
+library(latexpdf)
+```
+
+
+
+# The test and training data was loaded and I created an data partition where I then made training and test validation data sets based on the data partition.
+```{r}
+train_data <- read.csv("pml-training.csv")
+test_data <- read.csv("pml-testing.csv")
+intrain <- createDataPartition(train_data$classe, p=0.7, list = FALSE)
+train_valid <- train_data[intrain,]
+test_valid <- train_data[-intrain,]
+```
+
+# Get rid of variables with zero variance then removed variable with over 95% NA values to make the training as efficient as possible.
+
+```{r}
+near_zero <- nearZeroVar(train_valid)
+train_valid <- train_valid[,-near_zero]
+test_valid <- test_valid[, -near_zero]
+
+all_na <- sapply(train_valid,function(l) mean(is.na(l))) > 0.95
+train_valid <- train_valid[, all_na == FALSE]
+test_valid <- test_valid[, all_na == FALSE]
+```
+
+#Remove uncessary variables
+```{r}
+train_valid <- train_valid[, -c(1:6)]
+test_valid <- test_valid[, -c(1:6)]
+```
+
+# Find what data is correlated with one another and used a cutoff of 0.7 to determine the best correlation
+```{r}
+corr_train <- cor(train_valid[, -53], use = "pairwise.complete.obs")
+corr_high <- findCorrelation(corr_train, cutoff = 0.7)
+#corrplot doesn't help much
+corrplot(corr_train,order = "hclust" , method = "color" ,type = "upper",tl.col="black", tl.srt=45)
+```
+
+# Train the necessary prediction models and compare the accuracy of the seperate prediction models to find the best model to use.
+```{r}
+control <- trainControl(method = "cv", number = 3,verboseIter=FALSE)
+metric <- "Accuracy"
+
+
+#Prediction models
+#Random Forest
+set.seed(13)
+fit.rf <- train(classe~., data=train_valid, method="rf", metric=metric, trControl=control)
+#Classification Tree
+set.seed(13)
+fit.ct <- train(classe~., data=train_valid, method="rpart", trControl=control)
+#Linear Algorithms
+set.seed(13)
+fit.la <- train(classe~., data=train_valid, method="lda", metric = metric, trControl=control)
+
+#Rpart
+set.seed(13)
+fit.cart <- train(classe~., data=train_valid, method="rpart", metric=metric, trControl=control)
+
+#Gradient Boosting method
+set.seed(13)
+fit.gbm <- train(classe~., data=train_valid, method="gbm", metric=metric, trControl=control)
+
+
+results <- resamples(list(lda=fit.la, cart=fit.ct, rf=fit.rf))
+summary(results)
+
+dotplot(results)
+```
+# We found that the random forest model is the most accurate according to the boxplot.
+
+# Use predict function to test the random forest model
+```{r}
+end_result <- predict(fit.rf, newdata = test_data)
+summary(end_result)
+end_result
+````
+
+
